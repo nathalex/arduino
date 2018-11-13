@@ -1,0 +1,177 @@
+#include <SimpleTimer.h>
+
+/*
+This code is edited from:
+  Arduino Starter Kit example
+  Project 6 - Light Theremin
+*/
+
+SimpleTimer timer;
+
+//set pins for buzzers
+const int theremin = 3;
+const int ledmetr = 12;
+
+//light sensor variables for pitch
+int pitchSensorValue, pitch;
+int pitchSensLow = 0;
+int pitchSensHigh = 1023;
+const int ledPin = 13;
+
+//variables for theremin button
+const int buttonTherPin = 4;
+int buttonTherState = LOW;
+bool therPress = HIGH;
+
+//variables for potentiometer
+int potVal;
+int potLow = 0;
+int potHigh = 667;
+int beat;
+int meter;
+String tempo;
+
+//variables for metronome
+const int buttonMetrPin = 8;
+int buttonMetrState = HIGH;
+bool metrPress = HIGH;
+
+//variables for timers
+int metroTime, ledTime;
+
+//volume resistance: LDR
+int volume;
+
+//this boolean makes the led flash on every other beat
+bool led = false;
+
+void setup() {
+  digitalWrite(ledmetr, LOW);
+  
+  // Make the LED pin an output and turn it on
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, HIGH);
+  
+  //save other pins as inputs and start the serial monitor
+  pinMode(buttonTherPin, INPUT);
+  Serial.begin(9600);
+  pinMode(buttonMetrPin, INPUT);
+  pinMode(theremin, OUTPUT);
+  pinMode(ledmetr, OUTPUT);
+
+  //initialize the metronome
+  metroTime = timer.setInterval(750, metronome);
+  
+  // calibrate for the first three seconds after program runs
+  while (millis() < 3000) {
+    // record the maximum sensor value
+    pitchSensorValue = analogRead(A0);
+    
+    if (pitchSensorValue > pitchSensHigh) 
+    {
+      pitchSensHigh = pitchSensorValue;
+    }
+    
+    // record the minimum sensor value
+    if (pitchSensorValue < pitchSensLow) 
+    {
+      pitchSensLow = pitchSensorValue;
+    }
+  }
+  
+  // turn the arduino board LED off, signaling the end of the calibration period
+  digitalWrite(ledPin, LOW);
+}
+
+void loop() {
+//only starts the theremin when the button has been pressed
+  while(therPress)
+  {
+    //read the input from A0 and store it in a variable
+    //each analogRead needs to be read twice due to issues with the Arduino UNO only being able to read one analog valuein a set amount of time
+    pitchSensorValue = analogRead(A0);
+    pitchSensorValue = analogRead(A0);
+    //read the volume from pin 11
+    volume = analogRead(A5);
+    volume = analogRead(A5);
+    //map the sensor values to a wide range of pitches
+    pitch = map(pitchSensorValue, pitchSensLow, pitchSensHigh, 0, 2500);
+    //play the tone on pin 3 at pitch(in Hz) for 50ms
+    tone(theremin, pitch, 50);
+    buttonTherState = digitalRead(buttonTherPin);
+    //read the input from A3 and store it in a variable
+    potVal = analogRead(A3);
+    potVal = analogRead(A3);
+    //map the potentiometer values to a wide range of tempos
+    beat = map(potVal, potLow, potHigh, 20, 200);
+    if (beat < 60){tempo = "larghissimo to largho:";}
+    if (beat >= 60 and beat < 108){tempo = "larghetto to andante:";}
+    if (beat >= 108 and beat < 168){tempo = "andantino to allegro:";}
+    if (beat >=168){tempo = "vivace to prestissimo:";}
+    //only resets timer when potentiometer changes
+    if (meter != 60000/beat)
+    {
+      //set meter and run metronome
+      meter = 60000/beat;
+      //reset the timer
+      timer.deleteTimer(metroTime);
+      metroTime = timer.setInterval(meter, metronome);
+    }
+    timer.run();
+    //check the state of the button to potentially end while loop
+    if (buttonTherState == HIGH)
+    {
+      therPress = !therPress;
+    }
+    //checks if button is pressed
+    buttonMetrState = digitalRead(buttonMetrPin);
+    if (buttonMetrState == HIGH)
+    {
+        metrPress = !metrPress;
+    }
+  }
+  //checks if the button is pressed
+  if (not therPress)
+  {
+    delay(250);
+    pitch = 0;
+    volume = 0;
+    buttonTherState = digitalRead(buttonTherPin);
+    if(buttonTherState == HIGH)
+    {
+      therPress = !therPress;
+      delay(250);
+      digitalWrite(ledmetr, LOW);
+      tempo = "no tempo:";
+      beat = 0;
+      timer.run();
+    }
+  }
+}
+
+//metronome function flashes if button is on
+void metronome() {
+  //runs if the button has been pressed
+  if (not metrPress)
+  {
+    //toggles led
+    if(led)
+    {
+      digitalWrite(ledmetr, LOW);
+      led = false;
+    }
+   else
+   {
+    digitalWrite(ledmetr, HIGH);
+    led = true;
+    }
+   }
+   else
+   {
+    digitalWrite(ledmetr,LOW);
+   }
+  //keep running the theremin pitch while metronome runs, reduces the jerkiness of the theremin while the metronome is blinking
+  tone(theremin, pitch, 5);
+  //print the current values in the serial monitor
+  Serial.println("Pitch:" + String(pitch) + "hz, volume:" + String(volume) + ", "+ tempo + String(beat) + "bpm");
+}
